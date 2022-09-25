@@ -4,26 +4,29 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"regexp"
 	"slagbot/internal/pluginloader"
-	slackbot2 "slagbot/internal/slackconnection"
+	"slagbot/internal/slackconnection"
+	"slagbot/pkg/interfaces"
 	"slagbot/pkg/types"
 	"strings"
 	"sync"
 )
 
 type CommandHandler struct {
-	incomingMsgChannel chan slackbot2.SlackMessage
+	incomingMsgChannel chan slackconnection.SlackMessage
 	outgoingMsgChannel chan types.OutgoingSlackMessage
 	plugins            []*pluginloader.ReadyPlugin
+	logger             interfaces.LoggerInterface
 }
 
-func NewCommandHandler(incoming chan slackbot2.SlackMessage, outgoing chan types.OutgoingSlackMessage, plugins []*pluginloader.ReadyPlugin) *CommandHandler {
+func NewCommandHandler(incoming chan slackconnection.SlackMessage, outgoing chan types.OutgoingSlackMessage,
+	plugins []*pluginloader.ReadyPlugin, logger interfaces.LoggerInterface) *CommandHandler {
 	return &CommandHandler{
 		plugins:            plugins,
 		incomingMsgChannel: incoming,
 		outgoingMsgChannel: outgoing,
+		logger:             logger,
 	}
 }
 
@@ -31,28 +34,28 @@ func (ch *CommandHandler) StartCommandHandlingLoop(wg *sync.WaitGroup, ctx conte
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		log.Debugln("Starting StartCommandHandlingLoop")
+		ch.logger.Debug("Starting StartCommandHandlingLoop")
 		for {
 			select {
 			case msg := <-ch.incomingMsgChannel:
-				log.Debugf("StartCommandHandlingLoop received message: %+v\n", msg)
+				ch.logger.Debugf("StartCommandHandlingLoop received message: %+v", msg)
 				parseErr := ch.handleMessage(msg)
 				if parseErr != nil {
-					log.Errorln("Failed to parse the command.")
+					ch.logger.Error("Failed to parse the command.")
 					ch.outgoingMsgChannel <- types.OutgoingSlackMessage{
-						Channel:   &msg.Channel,
-						UserEmail: nil,
+						Channel:   msg.Channel,
+						UserEmail: "",
 						Message:   "Failed to parse the command",
 					}
 				}
 
 			case <-ctx.Done():
-				log.Debugln("Context done in StartCommandHandlingLoop")
+				ch.logger.Debug("Context done in StartCommandHandlingLoop")
 				return
 			}
 		}
 	}()
-	log.Info("StartCommandHandlingLoop done")
+	ch.logger.Info("StartCommandHandlingLoop done")
 }
 
 func (ch *CommandHandler) parseArguments(message string, params []types.Parameter) (types.Arguments, error) {
@@ -104,11 +107,11 @@ func (ch *CommandHandler) parseArguments(message string, params []types.Paramete
 	return args, nil
 }
 
-func (ch *CommandHandler) handleMessage(message slackbot2.SlackMessage) error {
+func (ch *CommandHandler) handleMessage(message slackconnection.SlackMessage) error {
 	var msgCommand string
 	var args types.Arguments
 	for _, plug := range ch.plugins {
-		log.Debugf("Cheking plugin %s for matching commands", plug.File)
+		ch.logger.Debugf("Cheking plugin %s for matching commands", plug.File)
 		for _, cmd := range plug.Commands {
 			if !strings.Contains(message.Text, cmd.Keyword) {
 				continue
@@ -127,7 +130,7 @@ func (ch *CommandHandler) handleMessage(message slackbot2.SlackMessage) error {
 			return nil
 		}
 	}
-	log.Debugf("Message handled: %+v\n", message)
-	log.Debugln("No command match found.")
+	ch.logger.Debugf("Message handled: %+v", message)
+	ch.logger.Debug("No command match found.")
 	return errors.New("no command found")
 }

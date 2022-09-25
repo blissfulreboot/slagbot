@@ -2,19 +2,18 @@ package main
 
 import (
 	"context"
-	log "github.com/sirupsen/logrus"
-	"slagbot/pkg/plugins"
+	"slagbot/pkg/interfaces"
 	"slagbot/pkg/types"
 	"strings"
 )
 
 var commandChannel chan types.ParsedCommand
 var slackMessageChannel chan<- types.OutgoingSlackMessage
-var pluginLogger plugins.PluginLogger
+var pluginLogger interfaces.LoggerInterface
 var ctx context.Context
 var cancel context.CancelFunc
 
-func Run(cmdChannel chan types.ParsedCommand, slackMsgChannel chan<- types.OutgoingSlackMessage, logger plugins.PluginLogger) {
+func Run(cmdChannel chan types.ParsedCommand, slackMsgChannel chan<- types.OutgoingSlackMessage, logger interfaces.LoggerInterface) {
 	commandChannel = cmdChannel
 	slackMessageChannel = slackMsgChannel
 	pluginLogger = logger
@@ -24,8 +23,8 @@ func Run(cmdChannel chan types.ParsedCommand, slackMsgChannel chan<- types.Outgo
 		for {
 			select {
 			case cmd := <-cmdChannel:
-				logger.Info("Received: ", cmd.Command)
-				logger.Info("Channel: ", cmd.Channel)
+				logger.Info("Received: " + cmd.Command)
+				logger.Info("Channel: " + cmd.Channel)
 				for key, arg := range cmd.Arguments {
 					logger.Info(key, ": ", arg)
 				}
@@ -33,37 +32,37 @@ func Run(cmdChannel chan types.ParsedCommand, slackMsgChannel chan<- types.Outgo
 				switch cmd.Command {
 				case "blissfulreboot":
 					slackMsgChannel <- types.OutgoingSlackMessage{
-						Channel:   &cmd.Channel,
-						UserEmail: nil,
+						Channel:   cmd.Channel,
+						UserEmail: "",
 						Message:   "Thanks!",
 					}
 				case "on the channel":
 					email, ok := cmd.Arguments["is very nice to"]
 					if !ok {
 						slackMsgChannel <- types.OutgoingSlackMessage{
-							Channel:   &cmd.Channel,
-							UserEmail: nil,
+							Channel:   cmd.Channel,
+							UserEmail: "",
 							Message:   "I think I did not understand this completely",
 						}
 						continue
 					}
 					emailString, ok := email.(string)
 					if !ok {
-						log.Info("Email is not a string")
+						logger.Info("Email is not a string")
 						continue
 					}
 					firstParts := strings.Split(emailString, "|")
 					finalParts := strings.Split(firstParts[0], ":")
 
 					slackMsgChannel <- types.OutgoingSlackMessage{
-						Channel:   nil,
-						UserEmail: &finalParts[len(finalParts)-1],
+						Channel:   "",
+						UserEmail: finalParts[len(finalParts)-1],
 						Message:   "Which is great, I think!",
 					}
 				}
 
 			case <-ctx.Done():
-				log.Info("Context done in plugin Run")
+				logger.Info("Context done in plugin Run")
 				return
 			}
 		}

@@ -2,11 +2,10 @@ package slackconnection
 
 import (
 	"context"
-	"fmt"
-	log "github.com/sirupsen/logrus"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 	"github.com/slack-go/slack/socketmode"
+	"slagbot/pkg/interfaces"
 	"slagbot/pkg/types"
 	"strings"
 	"sync"
@@ -28,9 +27,10 @@ type Bot struct {
 	OutgoingMessageChannel chan types.OutgoingSlackMessage
 	client                 *socketmode.Client
 	slackbotSelfId         string
+	logger                 interfaces.LoggerInterface
 }
 
-func NewBot(appToken string, botToken string) (*Bot, error) {
+func NewBot(appToken string, botToken string, logger interfaces.LoggerInterface) (*Bot, error) {
 	if appToken == "" {
 		panic("SLACK_APP_TOKEN must be set.\n")
 	}
@@ -49,8 +49,6 @@ func NewBot(appToken string, botToken string) (*Bot, error) {
 
 	api := slack.New(
 		botToken,
-		//slack.OptionDebug(true),
-		//slack.OptionLog(log.New(os.Stdout, "api: ", log.Lshortfile|log.LstdFlags)),
 		slack.OptionAppLevelToken(appToken),
 	)
 	// Get the slackconnection's id
@@ -60,12 +58,10 @@ func NewBot(appToken string, botToken string) (*Bot, error) {
 	}
 	slackbotSelfId := response.UserID
 
-	log.Info("Slackbot's UserID ", slackbotSelfId)
+	logger.Info("Slackbot's UserID ", slackbotSelfId)
 
 	client := socketmode.New(
 		api,
-		//socketmode.OptionDebug(true),
-		//socketmode.OptionLog(log.New(os.Stdout, "socketmode: ", log.Lshortfile|log.LstdFlags)),
 	)
 
 	return &Bot{
@@ -73,6 +69,7 @@ func NewBot(appToken string, botToken string) (*Bot, error) {
 		OutgoingMessageChannel: make(chan types.OutgoingSlackMessage),
 		client:                 client,
 		slackbotSelfId:         slackbotSelfId,
+		logger:                 logger,
 	}, nil
 }
 
@@ -99,21 +96,21 @@ func (b *Bot) Start(wg *sync.WaitGroup, ctx context.Context) {
 }
 
 func (b *Bot) middlewareConnecting(evt *socketmode.Event, client *socketmode.Client) {
-	fmt.Println("Connecting to Slack with Socket Mode...")
+	b.logger.Info("Connecting to Slack with Socket Mode...")
 }
 
 func (b *Bot) middlewareConnectionError(evt *socketmode.Event, client *socketmode.Client) {
-	fmt.Println("Connection failed. Retrying later...")
+	b.logger.Info("Connection failed. Retrying later...")
 }
 
 func (b *Bot) middlewareConnected(evt *socketmode.Event, client *socketmode.Client) {
-	fmt.Println("Connected to Slack with Socket Mode.")
+	b.logger.Info("Connected to Slack with Socket Mode.")
 }
 
 func (b *Bot) incomingMessageHandler(evt *socketmode.Event, client *socketmode.Client) {
 	eventsAPIEvent, ok := evt.Data.(slackevents.EventsAPIEvent)
 	if !ok {
-		log.Debugf("> Ignored %+v\n", evt)
+		b.logger.Debugf("> Ignored %+v", evt)
 		return
 	}
 	client.Ack(*evt.Request)
@@ -122,30 +119,30 @@ func (b *Bot) incomingMessageHandler(evt *socketmode.Event, client *socketmode.C
 
 	switch eventData := eventsAPIEvent.InnerEvent.Data.(type) {
 	case *slackevents.AppMentionEvent:
-		log.Debugf("AppMentionEvent: %+v\n", eventData)
+		b.logger.Debugf("AppMentionEvent: %+v", eventData)
 		slackMessage = SlackMessage{
 			User:    eventData.User,
 			Text:    eventData.Text,
 			Channel: eventData.Channel,
 		}
 	case *slackevents.MessageEvent:
-		log.Debugf("MessageEvent: %+v\n", eventData)
+		b.logger.Debugf("MessageEvent: %+v", eventData)
 		slackMessage = SlackMessage{
 			User:    eventData.User,
 			Text:    eventData.Text,
 			Channel: eventData.Channel,
 		}
 	default:
-		log.Errorln("Unknown message event")
-		log.Debugf("Data: %+v\n", eventData)
+		b.logger.Error("Unknown message event")
+		b.logger.Debugf("Data: %+v", eventData)
 	}
 
 	if slackMessage.User == b.slackbotSelfId {
-		log.Debugf("Ignoring own message: %+v\n", slackMessage)
+		b.logger.Debugf("Ignoring own message: %+v", slackMessage)
 		return
 	}
 
-	log.Debugf("slackMessage: %+v\n", slackMessage)
+	b.logger.Debugf("slackMessage: %+v", slackMessage)
 
 	b.IncomingMessageChannel <- slackMessage
 
@@ -159,31 +156,31 @@ func (b *Bot) startOutgoingMessageHandler(wg *sync.WaitGroup, ctx context.Contex
 			select {
 			case msg := <-b.OutgoingMessageChannel:
 				var channelId string
-				if msg.Channel != nil {
-					channelId = *msg.Channel
-				} else if msg.UserEmail != nil {
-					log.Debug(*msg.UserEmail)
-					user, getUserErr := b.client.GetUserByEmail(*msg.UserEmail)
+				if msg.Channel != "" {
+					channelId = msg.Channel
+				} else if msg.UserEmail != "" {
+					b.logger.Debug(msg.UserEmail)
+					user, getUserErr := b.client.GetUserByEmail(msg.UserEmail)
 					if getUserErr != nil {
-						log.Errorf("User with email %s not found\n", *msg.UserEmail)
-						log.Debugln(getUserErr)
+						b.logger.Errorf("User with email %s not found", msg.UserEmail)
+						b.logger.Debug(getUserErr)
 						continue
 					}
 					channelId = user.ID
 				} else {
-					log.Errorln("User email and channel id cannot both be nil. Message was not sent.")
-					log.Debugf("Message: %s\n", msg.Message)
+					b.logger.Error("User email and channel id cannot both be nil. Message was not sent.")
+					b.logger.Debugf("Message: %s", msg.Message)
 				}
 				_, _, err := b.client.Client.PostMessage(channelId, slack.MsgOptionText(msg.Message, false))
 				if err != nil {
-					log.Errorf("failed posting message: %v", err)
-					log.Debugf("Message: %s, Channel: %s\n", msg.Message, channelId)
+					b.logger.Errorf("failed posting message: %v", err)
+					b.logger.Debugf("Message: %s, Channel: %s", msg.Message, channelId)
 				}
 			case <-ctx.Done():
-				log.Debugln("Context done in startOutgoingMessageHandler")
+				b.logger.Debug("Context done in startOutgoingMessageHandler")
 				return
 			}
 		}
 	}()
-	log.Debugln("startOutgoingMessageHandler Done")
+	b.logger.Debug("startOutgoingMessageHandler Done")
 }

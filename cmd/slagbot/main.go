@@ -2,63 +2,55 @@ package main
 
 import (
 	"context"
-	log "github.com/sirupsen/logrus"
-	"gitlab.com/blissfulreboot/golang/conffee"
+	"fmt"
 	"os"
 	"os/signal"
 	"slagbot/internal/commandparser"
+	"slagbot/internal/configuration"
 	"slagbot/internal/pluginloader"
 	"slagbot/internal/slackconnection"
+	"slagbot/pkg/logging"
 	"sync"
 )
 
-type Configuration struct {
-	PluginDir              string
-	PluginExtension        string
-	PluginExitGraceSeconds uint
-	SlackAppToken          string `conffee:"required=true"`
-	SlackBotToken          string `conffee:"required=true"`
-}
-
 func main() {
-	log.SetLevel(log.TraceLevel)
-
-	conf := Configuration{
-		PluginDir:              "./",
-		PluginExtension:        ".plugin",
-		PluginExitGraceSeconds: 5,
-		SlackAppToken:          "",
-		SlackBotToken:          "",
+	conf, confErr := configuration.ReadConfiguration()
+	if confErr != nil {
+		fmt.Println(confErr)
+		os.Exit(1)
 	}
-	conffee.ReadConfiguration("./slagbot.conf", &conf, false, true)
+
+	logger := logging.NewLogger(conf.LogLevel, conf.LogEncoding)
+
 	wg := &sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	slackbot, botCreateErr := slackconnection.NewBot(conf.SlackAppToken, conf.SlackBotToken)
+	slackbot, botCreateErr := slackconnection.NewBot(conf.SlackAppToken, conf.SlackBotToken, logger)
 	if botCreateErr != nil {
-		log.Errorln(botCreateErr)
+		logger.Error(botCreateErr.Error())
 		return
 	}
 
 	slackbot.Start(wg, ctx)
 
-	log.Debugln("After slackconnection.Start")
+	logger.Debug("After slackconnection.Start")
 
 	plugins, pluginLoaderErr := pluginloader.LoadPlugins(conf.PluginDir, conf.PluginExtension, conf.PluginExitGraceSeconds,
-		slackbot.OutgoingMessageChannel, wg, ctx)
+		logger, slackbot.OutgoingMessageChannel, wg, ctx)
 
 	if pluginLoaderErr != nil {
-		log.Errorln(pluginLoaderErr)
+		logger.Error(pluginLoaderErr.Error())
 		return
 	}
-	log.Debugln("After utils.LoadPlugins")
+	logger.Debug("After utils.LoadPlugins")
 
-	commandHandler := commandparser.NewCommandHandler(slackbot.IncomingMessageChannel, slackbot.OutgoingMessageChannel, plugins)
-	log.Debugln("After utils.NewCommandHandler")
+	commandHandler := commandparser.NewCommandHandler(slackbot.IncomingMessageChannel, slackbot.OutgoingMessageChannel,
+		plugins, logger)
+	logger.Debug("After utils.NewCommandHandler")
 
 	commandHandler.StartCommandHandlingLoop(wg, ctx)
-	log.Debugln("After StartCommandHandlingLoop")
+	logger.Debug("After StartCommandHandlingLoop")
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)

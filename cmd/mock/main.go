@@ -4,37 +4,27 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"gitlab.com/blissfulreboot/golang/conffee"
 	"os"
 	"os/signal"
 	"slagbot/internal/commandparser"
+	"slagbot/internal/configuration"
 	"slagbot/internal/pluginloader"
 	"slagbot/internal/slackconnection"
+	"slagbot/pkg/logging"
 	"slagbot/pkg/types"
 	"sync"
 	"time"
 )
 
-type Configuration struct {
-	PluginDir              string
-	PluginExtension        string
-	PluginExitGraceSeconds uint
-	SlackAppToken          string `conffee:"required=true"`
-	SlackBotToken          string `conffee:"required=true"`
-}
-
 func main() {
-	log.SetLevel(log.TraceLevel)
-
-	conf := Configuration{
-		PluginDir:              "./",
-		PluginExtension:        ".plugin",
-		PluginExitGraceSeconds: 5,
-		SlackAppToken:          "",
-		SlackBotToken:          "",
+	conf, confErr := configuration.ReadConfiguration()
+	if confErr != nil {
+		fmt.Println(confErr)
+		os.Exit(1)
 	}
-	conffee.ReadConfiguration("./slagbot.conf", &conf, false, true)
+
+	logger := logging.NewLogger(conf.LogLevel, conf.LogEncoding)
+
 	wg := &sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -43,19 +33,19 @@ func main() {
 	outgoingMessageChannel := make(chan types.OutgoingSlackMessage)
 
 	plugins, pluginLoaderErr := pluginloader.LoadPlugins(conf.PluginDir, conf.PluginExtension, conf.PluginExitGraceSeconds,
-		outgoingMessageChannel, wg, ctx)
+		logger, outgoingMessageChannel, wg, ctx)
 
 	if pluginLoaderErr != nil {
-		log.Errorln(pluginLoaderErr)
+		logger.Error(pluginLoaderErr)
 		return
 	}
-	log.Debugln("After utils.LoadPlugins")
+	logger.Debug("After utils.LoadPlugins")
 
-	commandHandler := commandparser.NewCommandHandler(incomingMessagesChannel, outgoingMessageChannel, plugins)
-	log.Debugln("After utils.NewCommandHandler")
+	commandHandler := commandparser.NewCommandHandler(incomingMessagesChannel, outgoingMessageChannel, plugins, logger)
+	logger.Debug("After utils.NewCommandHandler")
 
 	commandHandler.StartCommandHandlingLoop(wg, ctx)
-	log.Debugln("After StartCommandHandlingLoop")
+	logger.Debug("After StartCommandHandlingLoop")
 
 	// Start outgoingMessageChannel reader
 	go func() {

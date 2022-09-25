@@ -88,7 +88,6 @@ jobs:
           release_name: Release ${{ needs.semantic-release.outputs.version }}
           draft: false
           prerelease: false
-          body_path: artifact/CHANGELOG.md
       - name: Upload release assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
