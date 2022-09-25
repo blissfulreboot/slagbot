@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/blissfulreboot/slagbot/compare/v1.1.0...v1.2.0) (2022-09-25)
+
+
+### Features
+
+* improvement, optimizations and docs ([637bb64](https://github.com/blissfulreboot/slagbot/commit/637bb64f6a6ad78ca1b93c366e51d7a4bd56297e))
+
 # [1.1.0](https://github.com/blissfulreboot/slagbot/compare/v1.0.0...v1.1.0) (2022-09-22)
 
 
