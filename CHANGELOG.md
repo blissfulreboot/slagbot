@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/blissfulreboot/slagbot/compare/v1.2.0...v1.2.1) (2022-11-25)
+
+
+### Bug Fixes
+
+* set the module name correctly ([080c4b3](https://github.com/blissfulreboot/slagbot/commit/080c4b3b946452774bec94ec5ff3ecea11e2ba89))
+
 # [1.2.0](https://github.com/blissfulreboot/slagbot/compare/v1.1.0...v1.2.0) (2022-09-25)
 
 
