@@ -1,4 +1,4 @@
-module slagbot
+module github.com/blissfulreboot/slagbot
 
 go 1.19
 

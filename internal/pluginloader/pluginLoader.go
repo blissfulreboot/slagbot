@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/blissfulreboot/slagbot/pkg/interfaces"
+	"github.com/blissfulreboot/slagbot/pkg/types"
 	"os"
 	"path/filepath"
 	"plugin"
-	"slagbot/pkg/interfaces"
-	"slagbot/pkg/types"
 	"sync"
 	"time"
 )

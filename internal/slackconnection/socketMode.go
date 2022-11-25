@@ -2,11 +2,11 @@ package slackconnection
 
 import (
 	"context"
+	"github.com/blissfulreboot/slagbot/pkg/interfaces"
+	"github.com/blissfulreboot/slagbot/pkg/types"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 	"github.com/slack-go/slack/socketmode"
-	"slagbot/pkg/interfaces"
-	"slagbot/pkg/types"
 	"strings"
 	"sync"
 )

@@ -3,13 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/blissfulreboot/slagbot/internal/commandparser"
+	"github.com/blissfulreboot/slagbot/internal/configuration"
+	"github.com/blissfulreboot/slagbot/internal/pluginloader"
+	"github.com/blissfulreboot/slagbot/internal/slackconnection"
+	"github.com/blissfulreboot/slagbot/pkg/logging"
 	"os"
 	"os/signal"
-	"slagbot/internal/commandparser"
-	"slagbot/internal/configuration"
-	"slagbot/internal/pluginloader"
-	"slagbot/internal/slackconnection"
-	"slagbot/pkg/logging"
 	"sync"
 )
 

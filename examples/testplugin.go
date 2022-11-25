@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"slagbot/pkg/interfaces"
-	"slagbot/pkg/types"
+	"github.com/blissfulreboot/slagbot/pkg/interfaces"
+	"github.com/blissfulreboot/slagbot/pkg/types"
 	"strings"
 )
 
