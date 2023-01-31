@@ -1,3 +1,10 @@
+## [1.2.2](https://github.com/blissfulreboot/slagbot/compare/v1.2.1...v1.2.2) (2023-01-31)
+
+
+### Bug Fixes
+
+* build with CGO enabled ([0c1db1f](https://github.com/blissfulreboot/slagbot/commit/0c1db1fcdc56ae8afefdd5acbdfd7a87ec910ddb))
+
 ## [1.2.1](https://github.com/blissfulreboot/slagbot/compare/v1.2.0...v1.2.1) (2022-11-25)
 
 
